@@ -140,7 +140,6 @@ button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 }
 .mini .inner{position:absolute; inset:0; transform-style:preserve-3d; transition:transform .5s cubic-bezier(.3,.7,.3,1); transition-delay:var(--d,0ms)}
 .mini.flipped .inner{transform:rotateY(180deg)}
-.example{font-size:.85rem; color:var(--muted); margin:0}
 .empty{color:var(--muted); font-size:.95rem; margin:0; padding:18px 0}
 
 /* fixed bar */
@@ -195,7 +194,6 @@ button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
       <h2 id="res-h">추천 번호</h2>
       <p class="odds" id="odds"></p>
     </div>
-    <p class="example" id="example" hidden>예시로 12장을 골라 뽑아 본 결과예요. 카드를 바꾸고 다시 추첨해 보세요.</p>
     <ol class="games" id="games"></ol>
     <p class="empty" id="empty" hidden>카드를 6장 이상 고르면 추첨할 수 있어요.</p>
   </section>
@@ -221,7 +219,7 @@ button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 
   var $ = function(id){ return document.getElementById(id); };
   var grid = $("grid"), hint = $("hint"), selCount = $("sel-count"), selRange = $("sel-range");
-  var gamesEl = $("games"), odds = $("odds"), emptyEl = $("empty"), exampleEl = $("example");
+  var gamesEl = $("games"), odds = $("odds"), emptyEl = $("empty");
   var drawBtn = $("draw"), gVal = $("g-val"), gDec = $("g-dec"), gInc = $("g-inc");
   var busy = false;
 
@@ -242,10 +240,10 @@ button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
   function fmt(n){ return n.toLocaleString("ko-KR"); }
   function pad(n){ return (n < 10 ? "0" : "") + n; }
 
-  function save(){ try{ localStorage.setItem("lotto-cards", JSON.stringify(state)); }catch(e){} }
+  function save(){ try{ localStorage.setItem("lotto-cards-v2", JSON.stringify(state)); }catch(e){} }
   function load(){
     try{
-      var s = JSON.parse(localStorage.getItem("lotto-cards"));
+      var s = JSON.parse(localStorage.getItem("lotto-cards-v2"));
       if (s && Array.isArray(s.sel)){
         state.sel = s.sel.filter(function(n){ return n >= 1 && n <= 45; }).slice(0, MAX_SEL);
         state.games = Math.min(MAX_GAMES, Math.max(1, (s.games|0) || 5));
@@ -272,7 +270,6 @@ button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
       card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
       return;
     } else { state.sel.push(n); setHint(""); }
-    exampleEl.hidden = true;
     render(); save();
   });
 
@@ -294,11 +291,11 @@ button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
     var pool = []; for (var n = 1; n <= 45; n++) if (state.sel.indexOf(n) < 0) pool.push(n);
     shuffle(pool);
     while (state.sel.length < 12 && pool.length) state.sel.push(pool.pop());
-    exampleEl.hidden = true; setHint(""); render(); save();
+    setHint(""); render(); save();
   });
   $("clear").addEventListener("click", function(){
     if (busy) return;
-    state.sel = []; exampleEl.hidden = true; setHint(""); render(); save();
+    state.sel = []; setHint(""); render(); save();
   });
   gDec.addEventListener("click", function(){ if (state.games > 1){ state.games--; render(); save(); } });
   gInc.addEventListener("click", function(){ if (state.games < MAX_GAMES){ state.games++; render(); save(); } });
@@ -344,7 +341,6 @@ button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 
   drawBtn.addEventListener("click", function(){
     if (busy || state.sel.length < MIN_SEL) return;
-    exampleEl.hidden = true;
     var hands = pickGames();
     if (reduced){ renderGames(hands, false); $("results").scrollIntoView({block:"start"}); return; }
     busy = true; drawBtn.disabled = true;
@@ -366,15 +362,10 @@ button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
     }, 1050);
   });
 
-  /* boot */
-  var had = load();
-  if (!had){
-    state.sel = shuffle(Array.from({length:45}, function(_, i){ return i + 1; })).slice(0, 12);
-    exampleEl.hidden = false;
-  }
+  /* boot: restore the viewer's own picks if any, start empty otherwise; results appear only after pressing draw */
+  load();
   render();
-  if (state.sel.length >= MIN_SEL){ renderGames(pickGames(), false); drawBtn.textContent = "다시 추첨"; }
-  else { emptyEl.hidden = false; }
+  emptyEl.hidden = false;
 })();
 </script>
 </body>
