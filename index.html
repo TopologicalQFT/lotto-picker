@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F3F4F6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121417" media="(prefers-color-scheme: dark)">
+<meta name="description" content="마음에 드는 번호 카드를 골라두면 그 안에서 6장씩 뽑아주는 재미용 로또 번호추천">
+<title>로또 번호추천</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 40'%3E%3Crect width='32' height='40' rx='5' fill='%232B44D8'/%3E%3Ctext x='16' y='27' font-family='monospace' font-weight='700' font-size='18' fill='white' text-anchor='middle'%3E45%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: one phone-width column. A 5-column deck of 45 cards on top, drawn games below, a fixed bar with the draw button. */
+:root{
+  --bg:#F3F4F6; --surface:#FFFFFF; --fg:#17191D; --muted:#6E7480; --line:#DADDE3;
+  --accent:#2B44D8; --accent-fg:#FFFFFF;
+  --card:#FFFFFF; --card-fg:#17191D; --card-sel:#17191D; --card-sel-fg:#FFFFFF;
+  --back:#2B44D8; --back-stripe:rgba(255,255,255,.18);
+  --shadow:0 1px 2px rgba(23,25,29,.05),0 8px 20px rgba(23,25,29,.06);
+  --font-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --font-num:"IBM Plex Mono","SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121417; --surface:#1A1D22; --fg:#ECEEF2; --muted:#9299A6; --line:#2C3038;
+    --accent:#7D8EFF; --accent-fg:#0E1222;
+    --card:#1F2329; --card-fg:#ECEEF2; --card-sel:#ECEEF2; --card-sel-fg:#121417;
+    --back:#5A6CF0; --back-stripe:rgba(255,255,255,.14);
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 20px rgba(0,0,0,.3);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121417; --surface:#1A1D22; --fg:#ECEEF2; --muted:#9299A6; --line:#2C3038;
+  --accent:#7D8EFF; --accent-fg:#0E1222;
+  --card:#1F2329; --card-fg:#ECEEF2; --card-sel:#ECEEF2; --card-sel-fg:#121417;
+  --back:#5A6CF0; --back-stripe:rgba(255,255,255,.14);
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 20px rgba(0,0,0,.3);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px)}
+[hidden]{display:none!important}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:var(--font-body); font-size:15px; line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0 calc(96px + env(safe-area-inset-bottom,0px));
+  -webkit-tap-highlight-color:transparent;
+}
+button{font:inherit; color:inherit; cursor:pointer; border:0; background:none; padding:0}
+button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+.app{max-width:560px; margin:0 auto; display:flex; flex-direction:column; gap:28px; padding-top:28px}
+
+/* header */
+.top h1{margin:0; font-size:1.75rem; font-weight:700; letter-spacing:-.02em; text-wrap:balance}
+.top p{margin:6px 0 0; color:var(--muted); max-width:34em}
+
+/* deck */
+.deck-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px}
+.deck-head h2{margin:0; font-size:1rem; font-weight:600}
+.counter{font-family:var(--font-num); font-variant-numeric:tabular-nums; color:var(--muted); font-size:.95rem}
+.counter b{color:var(--fg); font-weight:600}
+.hint{min-height:1.4em; margin:0 0 10px; font-size:.85rem; color:var(--muted)}
+.hint.warn{color:var(--accent)}
+
+.grid{display:grid; grid-template-columns:repeat(5,1fr); gap:8px}
+@media (min-width:480px){ .grid{grid-template-columns:repeat(9,1fr)} }
+.card{
+  position:relative; aspect-ratio:4/5; max-width:100%;
+  border-radius:10px; background:var(--card); color:var(--card-fg);
+  border:1px solid var(--line); box-shadow:var(--shadow);
+  font-family:var(--font-num); font-weight:600; font-size:1.15rem; font-variant-numeric:tabular-nums;
+  display:grid; place-items:center;
+  transition:transform .18s ease, background .18s ease, color .18s ease, border-color .18s ease, opacity .25s ease;
+}
+.card::after{
+  content:""; position:absolute; left:8px; top:7px; width:5px; height:5px; border-radius:50%;
+  background:var(--accent); opacity:0; transition:opacity .18s ease;
+}
+.card:hover{transform:translateY(-2px)}
+.card[aria-pressed="true"]{background:var(--card-sel); color:var(--card-sel-fg); border-color:var(--card-sel)}
+.card[aria-pressed="true"]::after{opacity:1}
+.card.shake{animation:shake .32s ease}
+@keyframes shake{0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)}}
+
+/* shuffle effect */
+.grid.shuffling .card[aria-pressed="false"]{opacity:.28}
+.grid.shuffling .card[aria-pressed="true"]{animation:wiggle .9s ease-in-out; animation-delay:var(--d,0ms)}
+@keyframes wiggle{
+  0%{transform:translate(0,0) rotate(0)}
+  20%{transform:translate(var(--x1),var(--y1)) rotate(var(--r1))}
+  45%{transform:translate(var(--x2),var(--y2)) rotate(var(--r2))}
+  70%{transform:translate(var(--x1),var(--y2)) rotate(var(--r1))}
+  100%{transform:translate(0,0) rotate(0)}
+}
+
+.deck-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px}
+.ghost{
+  padding:8px 14px; border-radius:999px; border:1px solid var(--line); background:var(--surface);
+  font-size:.9rem; font-weight:500;
+}
+.ghost:hover{border-color:var(--muted)}
+
+/* results */
+.results{display:flex; flex-direction:column; gap:14px}
+.results-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap}
+.results-head h2{margin:0; font-size:1rem; font-weight:600}
+.odds{margin:0; font-size:.85rem; color:var(--muted); font-variant-numeric:tabular-nums}
+.games{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px}
+.game{
+  display:grid; grid-template-columns:auto 1fr; align-items:center; gap:14px;
+  background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px 14px;
+}
+.game .label{
+  font-family:var(--font-num); font-weight:600; font-size:.9rem; color:var(--muted);
+  width:1.6em; text-align:center;
+}
+.hand{display:grid; grid-template-columns:repeat(6,1fr); gap:6px; min-width:0}
+.mini{position:relative; aspect-ratio:4/5; max-width:100%; perspective:600px}
+.mini .face,.mini .backside{
+  position:absolute; inset:0; border-radius:8px; display:grid; place-items:center;
+  backface-visibility:hidden; -webkit-backface-visibility:hidden;
+}
+.mini .face{
+  background:var(--card-sel); color:var(--card-sel-fg); border:1px solid var(--card-sel);
+  font-family:var(--font-num); font-weight:600; font-size:1rem; font-variant-numeric:tabular-nums;
+  transform:rotateY(180deg);
+}
+.mini .backside{
+  background:var(--back) repeating-linear-gradient(135deg,transparent 0 5px,var(--back-stripe) 5px 7px);
+  border:1px solid var(--back);
+}
+.mini .inner{position:absolute; inset:0; transform-style:preserve-3d; transition:transform .5s cubic-bezier(.3,.7,.3,1); transition-delay:var(--d,0ms)}
+.mini.flipped .inner{transform:rotateY(180deg)}
+.example{font-size:.85rem; color:var(--muted); margin:0}
+.empty{color:var(--muted); font-size:.95rem; margin:0; padding:18px 0}
+
+/* fixed bar */
+.bar{
+  position:fixed; left:0; right:0; bottom:0; z-index:5;
+  background:var(--surface); border-top:1px solid var(--line);
+  padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+}
+.bar-inner{max-width:560px; margin:0 auto; display:flex; align-items:center; gap:12px}
+.stepper{display:flex; align-items:center; gap:2px; border:1px solid var(--line); border-radius:999px; padding:2px; background:var(--bg)}
+.stepper button{width:36px; height:36px; border-radius:50%; font-size:1.2rem; line-height:1; display:grid; place-items:center}
+.stepper button:hover{background:var(--surface)}
+.stepper button:disabled{opacity:.3; cursor:default}
+.stepper .val{min-width:4.2em; text-align:center; font-size:.9rem; font-variant-numeric:tabular-nums}
+.stepper .val b{font-family:var(--font-num); font-weight:600}
+.primary{
+  flex:1; height:48px; border-radius:999px; background:var(--accent); color:var(--accent-fg);
+  font-weight:600; font-size:1rem; letter-spacing:-.01em;
+  transition:transform .12s ease, opacity .2s ease;
+}
+.primary:active{transform:scale(.98)}
+.primary:disabled{opacity:.4; cursor:default}
+
+@media (prefers-reduced-motion: reduce){
+  .card,.mini .inner,.primary{transition:none}
+  .grid.shuffling .card[aria-pressed="true"],.card.shake{animation:none}
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <h1>로또 번호추천</h1>
+    <p>마음에 드는 번호 카드를 골라두세요. 추첨을 누르면 그 카드들 속에서만 6장씩 뽑아 드려요. 확률과는 아무 상관 없는, 재미로 하는 추첨입니다.</p>
+  </header>
+
+  <section class="deck" aria-labelledby="deck-h">
+    <div class="deck-head">
+      <h2 id="deck-h">카드 고르기</h2>
+      <span class="counter"><b id="sel-count">0</b>장 선택 <span id="sel-range">· 10~20장이 적당해요</span></span>
+    </div>
+    <p class="hint" id="hint"></p>
+    <div class="grid" id="grid" role="group" aria-label="1부터 45까지 번호 카드"></div>
+    <div class="deck-actions">
+      <button class="ghost" id="fill" type="button">12장까지 랜덤으로 채우기</button>
+      <button class="ghost" id="clear" type="button">모두 내려놓기</button>
+    </div>
+  </section>
+
+  <section class="results" id="results" aria-labelledby="res-h">
+    <div class="results-head">
+      <h2 id="res-h">추천 번호</h2>
+      <p class="odds" id="odds"></p>
+    </div>
+    <p class="example" id="example" hidden>예시로 12장을 골라 뽑아 본 결과예요. 카드를 바꾸고 다시 추첨해 보세요.</p>
+    <ol class="games" id="games"></ol>
+    <p class="empty" id="empty" hidden>카드를 6장 이상 고르면 추첨할 수 있어요.</p>
+  </section>
+</main>
+
+<div class="bar">
+  <div class="bar-inner">
+    <div class="stepper" aria-label="게임 수">
+      <button type="button" id="g-dec" aria-label="게임 수 줄이기">−</button>
+      <span class="val"><b id="g-val">5</b>게임</span>
+      <button type="button" id="g-inc" aria-label="게임 수 늘리기">+</button>
+    </div>
+    <button class="primary" id="draw" type="button">추첨하기</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var MAX_SEL = 20, MIN_SEL = 6, MAX_GAMES = 10;
+  var LABELS = "ABCDEFGHIJ";
+  var state = { sel: [], games: 5 };
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var $ = function(id){ return document.getElementById(id); };
+  var grid = $("grid"), hint = $("hint"), selCount = $("sel-count"), selRange = $("sel-range");
+  var gamesEl = $("games"), odds = $("odds"), emptyEl = $("empty"), exampleEl = $("example");
+  var drawBtn = $("draw"), gVal = $("g-val"), gDec = $("g-dec"), gInc = $("g-inc");
+  var busy = false;
+
+  function rand(n){
+    var a = new Uint32Array(1);
+    if (window.crypto && crypto.getRandomValues){ crypto.getRandomValues(a); return a[0] % n; }
+    return Math.floor(Math.random()*n);
+  }
+  function shuffle(arr){
+    for (var i = arr.length-1; i > 0; i--){ var j = rand(i+1); var t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
+    return arr;
+  }
+  function choose6(m){
+    if (m < 6) return 0;
+    var r = 1; for (var i = 0; i < 6; i++){ r = r * (m - i) / (i + 1); }
+    return Math.round(r);
+  }
+  function fmt(n){ return n.toLocaleString("ko-KR"); }
+  function pad(n){ return (n < 10 ? "0" : "") + n; }
+
+  function save(){ try{ localStorage.setItem("lotto-cards", JSON.stringify(state)); }catch(e){} }
+  function load(){
+    try{
+      var s = JSON.parse(localStorage.getItem("lotto-cards"));
+      if (s && Array.isArray(s.sel)){
+        state.sel = s.sel.filter(function(n){ return n >= 1 && n <= 45; }).slice(0, MAX_SEL);
+        state.games = Math.min(MAX_GAMES, Math.max(1, (s.games|0) || 5));
+        return true;
+      }
+    }catch(e){}
+    return false;
+  }
+
+  /* deck */
+  for (var n = 1; n <= 45; n++){
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "card"; b.id = "card-" + n;
+    b.textContent = pad(n); b.dataset.n = n; b.setAttribute("aria-pressed", "false");
+    b.setAttribute("aria-label", n + "번 카드");
+    grid.appendChild(b);
+  }
+  grid.addEventListener("click", function(e){
+    var card = e.target.closest(".card"); if (!card || busy) return;
+    var n = +card.dataset.n, i = state.sel.indexOf(n);
+    if (i >= 0){ state.sel.splice(i, 1); setHint(""); }
+    else if (state.sel.length >= MAX_SEL){
+      setHint("최대 " + MAX_SEL + "장까지만 고를 수 있어요. 하나를 내려놓고 고르세요.", true);
+      card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
+      return;
+    } else { state.sel.push(n); setHint(""); }
+    exampleEl.hidden = true;
+    render(); save();
+  });
+
+  function setHint(msg, warn){ hint.textContent = msg; hint.classList.toggle("warn", !!warn); }
+
+  function render(){
+    var set = {}; state.sel.forEach(function(n){ set[n] = true; });
+    for (var n = 1; n <= 45; n++) $("card-" + n).setAttribute("aria-pressed", set[n] ? "true" : "false");
+    var m = state.sel.length;
+    selCount.textContent = m;
+    selRange.textContent = m === 0 ? "· 10~20장이 적당해요" : (m < MIN_SEL ? "· " + (MIN_SEL - m) + "장 더 고르면 추첨 가능" : "· 가능한 조합 " + fmt(choose6(m)) + "가지");
+    drawBtn.disabled = m < MIN_SEL;
+    gVal.textContent = state.games;
+    gDec.disabled = state.games <= 1; gInc.disabled = state.games >= MAX_GAMES;
+  }
+
+  $("fill").addEventListener("click", function(){
+    if (busy) return;
+    var pool = []; for (var n = 1; n <= 45; n++) if (state.sel.indexOf(n) < 0) pool.push(n);
+    shuffle(pool);
+    while (state.sel.length < 12 && pool.length) state.sel.push(pool.pop());
+    exampleEl.hidden = true; setHint(""); render(); save();
+  });
+  $("clear").addEventListener("click", function(){
+    if (busy) return;
+    state.sel = []; exampleEl.hidden = true; setHint(""); render(); save();
+  });
+  gDec.addEventListener("click", function(){ if (state.games > 1){ state.games--; render(); save(); } });
+  gInc.addEventListener("click", function(){ if (state.games < MAX_GAMES){ state.games++; render(); save(); } });
+
+  /* draw */
+  function pickGames(){
+    var m = state.sel.length, total = choose6(m);
+    var k = Math.min(state.games, total), seen = {}, out = [];
+    while (out.length < k){
+      var hand = shuffle(state.sel.slice()).slice(0, 6).sort(function(a, b){ return a - b; });
+      var key = hand.join(",");
+      if (!seen[key]){ seen[key] = true; out.push(hand); }
+    }
+    return out;
+  }
+
+  function renderGames(hands, animate){
+    gamesEl.innerHTML = "";
+    emptyEl.hidden = hands.length > 0;
+    var m = state.sel.length;
+    odds.textContent = hands.length ? m + "장 중 6장 · " + fmt(choose6(m)) + "가지 조합에서 " + hands.length + "가지" : "";
+    hands.forEach(function(hand, gi){
+      var li = document.createElement("li"); li.className = "game";
+      var lab = document.createElement("span"); lab.className = "label"; lab.textContent = LABELS[gi];
+      var row = document.createElement("div"); row.className = "hand";
+      hand.forEach(function(n, ci){
+        var mini = document.createElement("div"); mini.className = "mini";
+        var inner = document.createElement("div"); inner.className = "inner";
+        inner.style.setProperty("--d", (gi * 260 + ci * 90) + "ms");
+        var back = document.createElement("div"); back.className = "backside";
+        var face = document.createElement("div"); face.className = "face"; face.textContent = pad(n);
+        inner.appendChild(back); inner.appendChild(face); mini.appendChild(inner); row.appendChild(mini);
+        if (!animate) mini.classList.add("flipped");
+      });
+      li.appendChild(lab); li.appendChild(row); gamesEl.appendChild(li);
+    });
+    if (animate){
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){
+        gamesEl.querySelectorAll(".mini").forEach(function(el){ el.classList.add("flipped"); });
+      }); });
+    }
+  }
+
+  drawBtn.addEventListener("click", function(){
+    if (busy || state.sel.length < MIN_SEL) return;
+    exampleEl.hidden = true;
+    var hands = pickGames();
+    if (reduced){ renderGames(hands, false); $("results").scrollIntoView({block:"start"}); return; }
+    busy = true; drawBtn.disabled = true;
+    gamesEl.innerHTML = ""; odds.textContent = ""; emptyEl.hidden = true;
+    state.sel.forEach(function(n){
+      var c = $("card-" + n).style;
+      c.setProperty("--d", rand(160) + "ms");
+      c.setProperty("--x1", (rand(13) - 6) + "px"); c.setProperty("--y1", (rand(13) - 6) + "px");
+      c.setProperty("--x2", (rand(13) - 6) + "px"); c.setProperty("--y2", (rand(13) - 6) + "px");
+      c.setProperty("--r1", (rand(9) - 4) + "deg"); c.setProperty("--r2", (rand(9) - 4) + "deg");
+    });
+    grid.classList.add("shuffling");
+    setTimeout(function(){
+      grid.classList.remove("shuffling");
+      renderGames(hands, true);
+      $("results").scrollIntoView({behavior:"smooth", block:"start"});
+      busy = false; drawBtn.disabled = false;
+      drawBtn.textContent = "다시 추첨";
+    }, 1050);
+  });
+
+  /* boot */
+  var had = load();
+  if (!had){
+    state.sel = shuffle(Array.from({length:45}, function(_, i){ return i + 1; })).slice(0, 12);
+    exampleEl.hidden = false;
+  }
+  render();
+  if (state.sel.length >= MIN_SEL){ renderGames(pickGames(), false); drawBtn.textContent = "다시 추첨"; }
+  else { emptyEl.hidden = false; }
+})();
+</script>
+</body>
+</html>
